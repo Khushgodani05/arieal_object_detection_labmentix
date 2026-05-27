@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from PIL import Image
 import io
-from model import CNN
+from model.model import CNN
 
 st.set_page_config(
     page_title="SkyScan · Bird vs Drone",
