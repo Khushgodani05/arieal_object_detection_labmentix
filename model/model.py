@@ -1,5 +1,6 @@
 import torch 
 from torch import nn
+from torchvision import models
 
 class CNN(nn.Module):
     def __init__(self):
@@ -64,3 +65,26 @@ class CNN(nn.Module):
         x=nn.functional.relu(self.fc2(x))
         x=nn.functional.sigmoid(self.fc3(x))
         return x
+    
+    
+    
+
+
+class TransferLearningModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = models.resnet50(pretrained=True)
+        for param in self.model.parameters():
+            param.requires_grad = False
+
+        # Replace final layer for binary classification
+        self.model.fc = nn.Sequential(
+            nn.Linear(self.model.fc.in_features, 128),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        return self.model(x)

@@ -3,7 +3,8 @@ from torchvision import transforms
 from torch.utils.data import Dataset,DataLoader
 from torch import nn,optim
 import numpy as np
-from model import CNN
+from model import CNN,TransferLearningModel
+from sklearn.metrics import accuracy_score,precision_score,recall_score,f1_score,classification_report,confusion_matrix
 from tqdm import tqdm 
 
 
@@ -72,6 +73,8 @@ def predict():
     correct,total=0,0
     model.eval()
     test_epoch_loss=[]
+    all_preds = [] 
+    all_labels = []
     with torch.no_grad():
         for batch,(x,y) in tqdm(enumerate(testdataloader),total=len(testdataloader)):
             x=x.float().to(device)
@@ -80,11 +83,20 @@ def predict():
             output=torch.round(pred)
             correct+=(output==y).sum().item()
             total+=len(y)
+            all_preds.extend(output.cpu().numpy())
+            all_labels.extend(y.cpu().numpy())
             loss=loss_fn(pred,y)
             test_epoch_loss.append(loss.item())
     test_acc=(correct/total)*100
     test_loss=np.mean(test_epoch_loss)
-    return  test_acc,test_loss
+    conf_matrix = confusion_matrix(all_labels, all_preds) 
+    class_report = classification_report(all_labels, all_preds)
+    precision = precision_score(all_labels, all_preds)
+    recall = recall_score(all_labels, all_preds)
+    f1 = f1_score(all_labels, all_preds)
+    print(f"\nConfusion Matrix:\n{conf_matrix}")
+    print(f"Classification Report:\n{class_report}")
+    return  test_acc,precision,recall,f1,test_loss
             
 
 def train():        
@@ -94,6 +106,9 @@ def train():
     avg_test_loss=[]
     test_loss=[]
     test_acc=[]
+    best_accuracy = 0 
+    patience = 3 
+    counter = 0
     for i in range(epoch):
         model.train()
         correct=0
@@ -111,11 +126,21 @@ def train():
             output=(pred>0.5).float()
             correct+=(output==y).sum().item()
             epoch_loss.append(loss.item())
-        test_acc,test_loss=predict()
+        test_acc,precision,recall,f1,test_loss=predict()
         avg_train_loss=np.mean(epoch_loss)
         train_acc=correct/total*100
-        print(f"Epoch [{i+1}/{epoch}] Training_Loss: {avg_train_loss:.4f} Train_Accuracy: {train_acc:.2f}% Testing_Loss: {test_loss:.4f} Test_Accuracy: {test_acc:.2f}%")
-    torch.save(model.state_dict(),"best_model.pth")
+        print(f"Epoch [{i+1}/{epoch}] Training_Loss: {avg_train_loss:.4f} Train_Accuracy: {train_acc:.2f}% Testing_Loss: {test_loss:.4f} Test_Accuracy: {test_acc:.2f}%\nPrecision: {precision:.4f} Recall: {recall:.4f} F1-Score: {f1:.4f}")
+        #Early stopping implementation
+        if test_acc > best_accuracy: 
+            best_accuracy = test_acc 
+            torch.save(model.state_dict(), "best_model.pth") 
+            counter = 0 
+            print("Best model saved!") 
+        else: 
+            counter += 1 
+        if counter >= patience: 
+            print("Early stopping triggered!") 
+            break 
 
 if __name__=="__main__":
     train()
